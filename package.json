@@ -1,0 +1,22 @@
+{
+  "name": "data-hub-api",
+  "version": "1.0.0",
+  "description": "Simple blog post api made with express",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "express",
+    "api",
+    "internship"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14"
+  }
+}
