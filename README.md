@@ -63,8 +63,7 @@ All endpoints were tested using Postman.
 
 ## Deployment
 
-Backend deployed using Render.
-
+https://prodesk-mission-10.onrender.com/
 ## Author
 
 Tejasya
