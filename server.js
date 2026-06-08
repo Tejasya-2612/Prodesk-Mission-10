@@ -1,7 +1,12 @@
 const express = require('express')
+const dotenv = require('dotenv')
+const connectDB = require('./config/db')
+const Post = require('./models/Post')
+const User = require('./models/User')
 
+dotenv.config({ quiet: true })
 const app = express()
-const PORT = 5000
+const PORT = process.env.PORT || 5000
 
 app.use(express.json())
 
@@ -12,93 +17,173 @@ app.use((req, res, next) => {
   next()
 })
 
-let blogPosts = []
-let nextId = 1
-
 app.get('/', (req, res) => {
   res.status(200).json({
     message: 'The Data Hub API Running'
   })
 })
 
-app.get('/posts', (req, res) => {
-  console.log('Sending all blog posts')
-  res.status(200).json(blogPosts)
-})
-
-app.get('/posts/:id', (req, res) => {
-  const postId = Number(req.params.id)
-  const post = blogPosts.find((item) => item.id === postId)
-
-  if (!post) {
-    return res.status(404).json({ message: 'Post was not found' })
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.find()
+    res.status(200).json(users)
+  } catch (error) {
+    console.log('Users list error:', error.message)
+    res.status(400).json({ message: 'Could not get users' })
   }
-
-  res.status(200).json(post)
 })
 
-app.post('/posts', (req, res) => {
-  const title = req.body.title
-  const content = req.body.content
+app.post('/users', async (req, res) => {
+  try {
+    const name = req.body.name
+    const email = req.body.email
 
-  if (!title || !content || title.trim() === '' || content.trim() === '') {
-    return res.status(400).json({
-      message: 'Title and content are required'
+    if (!name && !email) {
+      return res.status(400).json({
+        message: 'Please send name or email'
+      })
+    }
+
+    const newUser = await User.create({
+      name: name,
+      email: email
     })
+
+    console.log('User added:', newUser.name)
+    res.status(201).json(newUser)
+  } catch (error) {
+    console.log('Create user error:', error.message)
+    res.status(400).json({ message: 'Could not create user' })
   }
-
-  const newPost = {
-    id: nextId,
-    title: title,
-    content: content
-  }
-
-  blogPosts.push(newPost)
-  nextId++
-
-  console.log('New post added:', newPost.title)
-  res.status(201).json(newPost)
 })
 
-app.put('/posts/:id', (req, res) => {
-  const postId = Number(req.params.id)
-  const post = blogPosts.find((item) => item.id === postId)
-
-  if (!post) {
-    return res.status(404).json({ message: 'Post was not found' })
+app.get('/posts', async (req, res) => {
+  try {
+    console.log('Sending all blog posts from db')
+    const posts = await Post.find()
+    res.status(200).json(posts)
+  } catch (error) {
+    console.log('Error getting posts:', error.message)
+    res.status(400).json({ message: 'Could not get posts' })
   }
+})
 
-  const title = req.body.title
-  const content = req.body.content
+app.get('/posts/populated', async (req, res) => {
+  try {
+    const posts = await Post.find().populate('authorId')
+    res.status(200).json(posts)
+  } catch (error) {
+    console.log('Populate route error:', error.message)
+    res.status(400).json({ message: 'Could not get populated posts' })
+  }
+})
 
-  if (!title || !content || title.trim() === '' || content.trim() === '') {
-    return res.status(400).json({
-      message: 'Please send title and content'
+app.get('/posts/recent/top3', async (req, res) => {
+  try {
+    const posts = await Post.find().sort({ createdAt: -1 }).limit(3)
+    res.status(200).json(posts)
+  } catch (error) {
+    console.log('Recent posts error:', error.message)
+    res.status(400).json({ message: 'Could not get recent posts' })
+  }
+})
+
+app.get('/posts/:id', async (req, res) => {
+  try {
+    const postId = req.params.id.trim()
+    const post = await Post.findById(postId)
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post was not found' })
+    }
+
+    res.status(200).json(post)
+  } catch (error) {
+    console.log('Single post error:', error.message)
+    res.status(400).json({ message: 'Invalid post id or request' })
+  }
+})
+
+app.post('/posts', async (req, res) => {
+  try {
+    const title = req.body.title
+    const content = req.body.content
+    const authorId = req.body.authorId
+
+    if (!title || !content || title.trim() === '' || content.trim() === '') {
+      return res.status(400).json({
+        message: 'Title and content are required'
+      })
+    }
+
+    const newPost = await Post.create({
+      title: title,
+      content: content,
+      authorId: authorId
     })
+
+    console.log('New post added:', newPost.title)
+    res.status(201).json(newPost)
+  } catch (error) {
+    console.log('Create post error:', error.message)
+    res.status(400).json({ message: 'Could not create post' })
   }
-
-  post.title = title
-  post.content = content
-
-  console.log('Updated post id', postId)
-  res.status(200).json(post)
 })
 
-app.delete('/posts/:id', (req, res) => {
-  const postId = Number(req.params.id)
-  const postIndex = blogPosts.findIndex((item) => item.id === postId)
+app.put('/posts/:id', async (req, res) => {
+  try {
+    const postId = req.params.id.trim()
+    const title = req.body.title
+    const content = req.body.content
+    const authorId = req.body.authorId
 
-  if (postIndex === -1) {
-    return res.status(404).json({ message: 'Post was not found' })
+    if (!title || !content || title.trim() === '' || content.trim() === '') {
+      return res.status(400).json({
+        message: 'Please send title and content'
+      })
+    }
+
+    const updatedPost = await Post.findByIdAndUpdate(
+      postId,
+      {
+        title: title,
+        content: content,
+        authorId: authorId
+      },
+      { new: true, runValidators: true }
+    )
+
+    if (!updatedPost) {
+      return res.status(404).json({ message: 'Post was not found' })
+    }
+
+    console.log('Updated post id', postId)
+    res.status(200).json(updatedPost)
+  } catch (error) {
+    console.log('Update post error:', error.message)
+    res.status(400).json({ message: 'Could not update post' })
   }
+})
 
-  const deletedPost = blogPosts.splice(postIndex, 1)
-  console.log('Deleted post:', deletedPost[0].title)
+app.delete('/posts/:id', async (req, res) => {
+  try {
+    const postId = req.params.id.trim()
+    const deletedPost = await Post.findByIdAndDelete(postId)
 
-  res.status(200).json({
-    message: 'Post deleted',
-    post: deletedPost[0]
-  })
+    if (!deletedPost) {
+      return res.status(404).json({ message: 'Post was not found' })
+    }
+
+    console.log('Deleted post:', deletedPost.title)
+
+    res.status(200).json({
+      message: 'Post deleted',
+      post: deletedPost
+    })
+  } catch (error) {
+    console.log('Delete post error:', error.message)
+    res.status(400).json({ message: 'Could not delete post' })
+  }
 })
 
 app.post('/login', (req, res) => {
@@ -124,7 +209,9 @@ app.use((req, res) => {
   })
 })
 
-app.listen(PORT, () => {
-  console.log('The Data Hub API started')
-  console.log(`Server running on http://localhost:${PORT}`)
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log('The Data Hub API started')
+    console.log(`Server running on http://localhost:${PORT}`)
+  })
 })
